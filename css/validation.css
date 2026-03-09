@@ -1,0 +1,282 @@
+/* ============================================
+   GRADEFLOW - Login Validation Styles
+   Shared across Admin & Student Login pages
+   ============================================ */
+
+/* ---- Form Group Positioning ---- */
+.auth-form-section .form-group {
+  position: relative;
+}
+
+/* ---- Validation Icon (checkmark / cross) ---- */
+.validation-icon {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 2;
+}
+
+.validation-icon.show {
+  opacity: 1;
+}
+
+.validation-icon.valid {
+  color: var(--success);
+}
+
+.validation-icon.invalid {
+  color: #ff6b6b;
+}
+
+/* ---- Error Messages ---- */
+.v-error-msg {
+  color: #ff6b6b;
+  font-size: 12.5px;
+  margin-top: 6px;
+  margin-left: 2px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.v-error-msg.show {
+  display: flex;
+  animation: slideDown 0.3s ease, shake 0.4s ease;
+}
+
+.v-error-msg i {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ---- Input States ---- */
+.form-input.input-error {
+  border-color: #ff6b6b !important;
+  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.1) !important;
+}
+
+.form-input.input-success {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 4px rgba(0, 184, 148, 0.1) !important;
+}
+
+/* ---- Icon State Colors ---- */
+.form-input-wrapper .input-icon.icon-error {
+  color: #ff6b6b;
+}
+
+.form-input-wrapper .input-icon.icon-success {
+  color: var(--success);
+}
+
+/* ---- Password Toggle ---- */
+.password-toggle {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.05rem;
+  padding: 4px;
+  z-index: 2;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--primary-light);
+}
+
+/* ---- Password Strength Meter ---- */
+.strength-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  height: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.strength-meter.show {
+  opacity: 1;
+}
+
+.strength-bar {
+  flex: 1;
+  height: 100%;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.3s ease;
+}
+
+.strength-bar.active.weak   { background: #ff6b6b; }
+.strength-bar.active.medium { background: var(--warning); }
+.strength-bar.active.strong { background: var(--success); }
+
+.strength-text {
+  font-size: 11.5px;
+  margin-top: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  display: none;
+}
+
+.strength-text.show   { display: block; }
+.strength-text.weak   { color: #ff6b6b; }
+.strength-text.medium { color: var(--warning); }
+.strength-text.strong { color: var(--success); }
+
+/* ---- Character Count ---- */
+.char-count {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.char-count.show { opacity: 1; }
+
+/* ---- Submit Button States ---- */
+.submit-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-btn.loading {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.submit-btn .btn-text {
+  transition: opacity 0.3s ease;
+}
+
+.submit-btn.loading .btn-text {
+  opacity: 0;
+}
+
+.submit-btn .spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+
+.submit-btn.loading .spinner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner-circle {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ---- Toast Notifications ---- */
+.toast-notification {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  padding: 16px 24px;
+  border-radius: var(--radius-md, 12px);
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 9999;
+  transform: translateX(120%);
+  transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  backdrop-filter: blur(20px);
+  border: 1px solid;
+}
+
+.toast-notification.show {
+  transform: translateX(0);
+}
+
+.toast-notification.toast-error {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+.toast-notification.toast-success {
+  background: rgba(0, 184, 148, 0.15);
+  color: var(--success);
+  border-color: rgba(0, 184, 148, 0.3);
+}
+
+.toast-notification.toast-warning {
+  background: rgba(253, 203, 110, 0.15);
+  color: var(--warning);
+  border-color: rgba(253, 203, 110, 0.3);
+}
+
+/* ---- Login Attempts Warning ---- */
+.login-attempts {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.login-attempts.show { opacity: 1; }
+.login-attempts span { color: var(--warning); font-weight: 600; }
+
+/* ---- Caps Lock Warning ---- */
+.caps-warning {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--warning);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.caps-warning.show {
+  display: flex;
+  animation: slideDown 0.3s ease;
+}
+
+/* ---- Keyframes ---- */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes successPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 184, 148, 0.4); }
+  70%  { box-shadow: 0 0 0 12px rgba(0, 184, 148, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 184, 148, 0); }
+}
+
+@keyframes shake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-3px); }
+  50%  { transform: translateX(3px); }
+  75%  { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
