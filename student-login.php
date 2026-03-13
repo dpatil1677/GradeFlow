@@ -1,3 +1,45 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+
+$error = '';
+$success = '';
+
+// If already logged in, redirect
+if (isset($_SESSION['student_id'])) {
+    header('Location: student-dashboard.php');
+    exit;
+}
+
+// Handle login POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $roll = trim($_POST['roll_number'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if (empty($roll) || empty($password)) {
+        $error = 'All fields are required';
+    } else {
+        $stmt = $pdo->prepare("SELECT s.*, c.course_name, c.short_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.roll_number = ?");
+        $stmt->execute([$roll]);
+        $student = $stmt->fetch();
+
+        if ($student && password_verify($password, $student['password'])) {
+            $_SESSION['student_id'] = $student['id'];
+            $_SESSION['student_roll'] = $student['roll_number'];
+            $_SESSION['student_name'] = $student['first_name'] . ' ' . $student['last_name'];
+            $_SESSION['student_course'] = $student['course_name'];
+            $_SESSION['student_course_short'] = $student['short_name'];
+            $_SESSION['student_semester'] = $student['semester'];
+            $_SESSION['student_section'] = $student['section'];
+            $_SESSION['student_email'] = $student['email'];
+            $_SESSION['student_course_id'] = $student['course_id'];
+            $success = 'Login successful! Redirecting to dashboard...';
+        } else {
+            $error = 'Invalid roll number or password.';
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,13 +98,20 @@
           <p>Enter your credentials to access your academic portal</p>
         </div>
 
-        <form id="studentLoginForm" action="#" method="POST" novalidate>
+        <?php if ($error): ?>
+        <div class="alert alert-danger" style="margin-bottom: 20px;">
+          <i class="fas fa-exclamation-circle"></i>
+          <span><?php echo htmlspecialchars($error); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <form id="studentLoginForm" action="" method="POST" novalidate>
           <!-- Roll Number Field -->
           <div class="form-group">
             <label class="form-label" for="roll">Roll Number</label>
             <div class="form-input-wrapper">
               <span class="input-icon" id="rollIcon"><i class="fas fa-id-badge"></i></span>
-              <input type="text" id="roll" name="roll_number" class="form-input" placeholder="Enter your roll number" autocomplete="username" inputmode="numeric">
+              <input type="text" id="roll" name="roll_number" class="form-input" placeholder="Enter your roll number (e.g., CS2025001)" autocomplete="username" value="<?php echo htmlspecialchars($_POST['roll_number'] ?? ''); ?>">
               <span class="validation-icon" id="rollValidIcon"><i class="fas fa-check-circle"></i></span>
             </div>
             <div class="v-error-msg" id="rollError"><i class="fas fa-exclamation-circle"></i> <span></span></div>
@@ -105,11 +154,6 @@
             <span class="spinner"><span class="spinner-circle"></span> Authenticating...</span>
           </button>
 
-          <!-- Login Attempts Warning -->
-          <div class="login-attempts" id="loginAttempts">
-            <i class="fas fa-info-circle"></i> <span id="attemptCount">5</span> attempts remaining
-          </div>
-
           <div class="form-divider">or</div>
 
           <a href="result-search.php" class="btn btn-ghost btn-lg" style="width:100%;">
@@ -144,9 +188,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const bars = [document.getElementById('bar1'), document.getElementById('bar2'), document.getElementById('bar3'), document.getElementById('bar4')];
   const rollCount = document.getElementById('rollCount');
   const capsWarning = document.getElementById('capsWarning');
-  const loginAttemptsEl = document.getElementById('loginAttempts');
-  const attemptCountEl = document.getElementById('attemptCount');
-  let maxAttempts = 5, currentAttempts = 0;
+
+  <?php if ($success): ?>
+  showToast('<?php echo $success; ?>', 'success');
+  setTimeout(function() { window.location.href = 'student-dashboard.php'; }, 1200);
+  <?php endif; ?>
 
   /* ---- Toast ---- */
   function showToast(message, type) {
@@ -182,9 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function validateRoll() {
     const v = rollInput.value.trim();
     if (!v) { showError(rollInput, rollError, rollIcon, rollValidIcon, 'Roll number is required'); return false; }
-    if (!/^\d+$/.test(v)) { showError(rollInput, rollError, rollIcon, rollValidIcon, 'Roll number must contain only digits'); return false; }
-    if (v.length < 4) { showError(rollInput, rollError, rollIcon, rollValidIcon, 'Roll number must be at least 4 digits'); return false; }
-    if (v.length > 10) { showError(rollInput, rollError, rollIcon, rollValidIcon, 'Roll number must not exceed 10 digits'); return false; }
+    if (v.length < 4) { showError(rollInput, rollError, rollIcon, rollValidIcon, 'Roll number must be at least 4 characters'); return false; }
     clearError(rollInput, rollError, rollIcon, rollValidIcon);
     showSuccess(rollInput, rollIcon, rollValidIcon);
     return true;
@@ -194,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const v = passInput.value;
     if (!v) { showError(passInput, passError, passwordIcon, null, 'Password is required'); resetStrength(); return false; }
     if (v.length < 6) { showError(passInput, passError, passwordIcon, null, 'Password must be at least 6 characters'); return false; }
-    if (v.length > 50) { showError(passInput, passError, passwordIcon, null, 'Password must not exceed 50 characters'); return false; }
     clearError(passInput, passError, passwordIcon, null);
     showSuccess(passInput, passwordIcon, null);
     return true;
@@ -227,9 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* ---- Real-time validation ---- */
   rollInput.addEventListener('input', function() {
-    // Allow only digits
-    this.value = this.value.replace(/[^0-9]/g, '');
-    rollCount.textContent = this.value.length > 0 ? this.value.length + ' digits' : '\u00A0';
+    rollCount.textContent = this.value.length > 0 ? this.value.length + ' chars' : '\u00A0';
     rollCount.classList.toggle('show', this.value.length > 0);
     if (this.value.trim()) validateRoll();
     else { clearError(this, rollError, rollIcon, rollValidIcon); rollValidIcon.classList.remove('show'); this.classList.remove('input-success'); }
@@ -253,28 +294,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* ---- Submit ---- */
   form.addEventListener('submit', function(e) {
-    e.preventDefault();
     const r = validateRoll(), p = validatePassword();
     if (!r || !p) {
+      e.preventDefault();
       if (!r) rollInput.focus(); else passInput.focus();
       showToast('Please fix the errors before proceeding', 'error');
       form.style.animation = 'shake 0.4s ease'; setTimeout(() => form.style.animation = '', 400);
       return;
     }
-    currentAttempts++;
-    if (currentAttempts >= maxAttempts) { showToast('Too many attempts. Please try again later.', 'error'); submitBtn.disabled = true; submitBtn.style.opacity = '0.5'; return; }
-    const rem = maxAttempts - currentAttempts;
-    attemptCountEl.textContent = rem;
-    if (currentAttempts >= 2) loginAttemptsEl.classList.add('show');
-
     submitBtn.classList.add('loading');
-    setTimeout(function() {
-      submitBtn.classList.remove('loading');
-      showToast('Login successful! Redirecting to dashboard...', 'success');
-      submitBtn.style.background = 'var(--gradient-secondary)';
-      submitBtn.style.animation = 'successPulse 0.6s ease';
-      setTimeout(() => window.location.href = 'student-dashboard.php', 1200);
-    }, 1500);
   });
 
   /* ---- Enter key navigation ---- */

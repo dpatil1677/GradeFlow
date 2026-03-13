@@ -1,3 +1,78 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+requireAdmin();
+
+$admin = getAdminInfo();
+$initials = getInitials($admin['full_name']);
+
+// Handle delete
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
+    $delId = intval($_POST['delete_id']);
+    $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$delId]);
+    header('Location: manage-students.php?deleted=1');
+    exit;
+}
+
+// Filters
+$search   = trim($_GET['search'] ?? '');
+$courseF   = intval($_GET['course'] ?? 0);
+$semF     = intval($_GET['semester'] ?? 0);
+$statusF  = $_GET['status'] ?? '';
+$page     = max(1, intval($_GET['page'] ?? 1));
+$perPage  = 6;
+$offset   = ($page - 1) * $perPage;
+
+// Build query
+$where = [];
+$params = [];
+
+if ($search) {
+    $where[] = "(s.first_name LIKE ? OR s.last_name LIKE ? OR s.roll_number LIKE ? OR s.email LIKE ?)";
+    $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%"]);
+}
+if ($courseF) {
+    $where[] = "s.course_id = ?";
+    $params[] = $courseF;
+}
+if ($semF) {
+    $where[] = "s.semester = ?";
+    $params[] = $semF;
+}
+if ($statusF) {
+    $where[] = "s.status = ?";
+    $params[] = $statusF;
+}
+
+$whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+// Count total
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM students s $whereClause");
+$countStmt->execute($params);
+$totalFiltered = $countStmt->fetchColumn();
+$totalPages = max(1, ceil($totalFiltered / $perPage));
+
+// Fetch students
+$sql = "SELECT s.*, c.short_name as course_short FROM students s JOIN courses c ON s.course_id = c.id $whereClause ORDER BY s.created_at DESC LIMIT $perPage OFFSET $offset";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$students = $stmt->fetchAll();
+
+// Stats
+$totalStudents  = $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
+$activeStudents = $pdo->query("SELECT COUNT(*) FROM students WHERE status='Active'")->fetchColumn();
+$inactiveStudents = $pdo->query("SELECT COUNT(*) FROM students WHERE status='Inactive'")->fetchColumn();
+$graduatedStudents = $pdo->query("SELECT COUNT(*) FROM students WHERE status='Graduated'")->fetchColumn();
+
+// Courses for filter
+$courses = $pdo->query("SELECT * FROM courses ORDER BY course_name")->fetchAll();
+
+$gradients = [
+    'var(--gradient-primary)', 'var(--gradient-secondary)', 'var(--gradient-accent)',
+    'linear-gradient(135deg,#fdcb6e,#e17055)', 'linear-gradient(135deg,#a29bfe,#6c5ce7)',
+    'linear-gradient(135deg,#55efc4,#00b894)',
+];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,24 +102,22 @@
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Student Management</div>
           <a href="add-student.php" class="sidebar-link"><span class="icon"><i class="fas fa-user-plus"></i></span> Add Student</a>
-          <a href="manage-students.php" class="sidebar-link active"><span class="icon"><i class="fas fa-users"></i></span> Manage Students <span class="badge">523</span></a>
+          <a href="manage-students.php" class="sidebar-link active"><span class="icon"><i class="fas fa-users"></i></span> Manage Students <span class="badge"><?php echo $totalStudents; ?></span></a>
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Academics</div>
           <a href="add-marks.php" class="sidebar-link"><span class="icon"><i class="fas fa-pen-alt"></i></span> Add Marks</a>
           <a href="manage-attendance.php" class="sidebar-link"><span class="icon"><i class="fas fa-clipboard-check"></i></span> Attendance</a>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-poll"></i></span> Results</a>
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">System</div>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-cog"></i></span> Settings</a>
-          <a href="index.php" class="sidebar-link"><span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout</a>
+          <a href="logout.php" class="sidebar-link"><span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout</a>
         </div>
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);">AD</div>
-          <div class="sidebar-user-info"><div class="name">Dr. Admin</div><div class="role">Super Administrator</div></div>
+          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);"><?php echo $initials; ?></div>
+          <div class="sidebar-user-info"><div class="name"><?php echo htmlspecialchars($admin['full_name']); ?></div><div class="role">Super Administrator</div></div>
         </div>
       </div>
     </aside>
@@ -62,69 +135,63 @@
       </header>
 
       <div class="dashboard-content">
+
+        <?php if (isset($_GET['deleted'])): ?>
+        <div class="alert alert-success animate-fade-down" style="margin-bottom:20px;">
+          <i class="fas fa-check-circle"></i> <span>Student deleted successfully.</span>
+        </div>
+        <?php endif; ?>
+
         <!-- Stats -->
         <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 28px;">
           <div class="stat-card">
-            <div class="stat-card-header">
-              <div class="stat-icon primary"><i class="fas fa-users"></i></div>
-            </div>
-            <div class="stat-value">523</div>
+            <div class="stat-card-header"><div class="stat-icon primary"><i class="fas fa-users"></i></div></div>
+            <div class="stat-value"><?php echo $totalStudents; ?></div>
             <div class="stat-label">Total Students</div>
           </div>
           <div class="stat-card">
-            <div class="stat-card-header">
-              <div class="stat-icon success"><i class="fas fa-user-check"></i></div>
-            </div>
-            <div class="stat-value">498</div>
+            <div class="stat-card-header"><div class="stat-icon success"><i class="fas fa-user-check"></i></div></div>
+            <div class="stat-value"><?php echo $activeStudents; ?></div>
             <div class="stat-label">Active Students</div>
           </div>
           <div class="stat-card">
-            <div class="stat-card-header">
-              <div class="stat-icon warning"><i class="fas fa-user-clock"></i></div>
-            </div>
-            <div class="stat-value">18</div>
+            <div class="stat-card-header"><div class="stat-icon warning"><i class="fas fa-user-clock"></i></div></div>
+            <div class="stat-value"><?php echo $inactiveStudents; ?></div>
             <div class="stat-label">Inactive</div>
           </div>
           <div class="stat-card">
-            <div class="stat-card-header">
-              <div class="stat-icon accent"><i class="fas fa-user-graduate"></i></div>
-            </div>
-            <div class="stat-value">7</div>
+            <div class="stat-card-header"><div class="stat-icon accent"><i class="fas fa-user-graduate"></i></div></div>
+            <div class="stat-value"><?php echo $graduatedStudents; ?></div>
             <div class="stat-label">Graduated</div>
           </div>
         </div>
 
         <!-- Filters -->
-        <div class="filter-bar">
+        <form method="GET" class="filter-bar">
           <div class="topbar-search" style="flex:1;max-width:320px;">
             <span class="search-icon"><i class="fas fa-search"></i></span>
-            <input type="text" placeholder="Search by name or roll number..." style="width:100%;">
+            <input type="text" name="search" placeholder="Search by name or roll number..." style="width:100%;" value="<?php echo htmlspecialchars($search); ?>">
           </div>
-          <select class="form-select">
-            <option>All Courses</option>
-            <option>BSc Computer Science</option>
-            <option>BSc Electronics</option>
-            <option>BSc Mechanical</option>
-            <option>BBA</option>
-            <option>BCA</option>
+          <select name="course" class="form-select">
+            <option value="0">All Courses</option>
+            <?php foreach ($courses as $c): ?>
+            <option value="<?php echo $c['id']; ?>" <?php echo $courseF == $c['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['course_name']); ?></option>
+            <?php endforeach; ?>
           </select>
-          <select class="form-select">
-            <option>All Semesters</option>
-            <option>Semester 1</option>
-            <option>Semester 2</option>
-            <option>Semester 3</option>
-            <option>Semester 4</option>
-            <option>Semester 5</option>
-            <option>Semester 6</option>
+          <select name="semester" class="form-select">
+            <option value="0">All Semesters</option>
+            <?php for ($s=1;$s<=8;$s++): ?>
+            <option value="<?php echo $s; ?>" <?php echo $semF == $s ? 'selected' : ''; ?>>Semester <?php echo $s; ?></option>
+            <?php endfor; ?>
           </select>
-          <select class="form-select">
-            <option>All Status</option>
-            <option>Active</option>
-            <option>Inactive</option>
-            <option>Graduated</option>
+          <select name="status" class="form-select">
+            <option value="">All Status</option>
+            <option value="Active" <?php echo $statusF==='Active'?'selected':''; ?>>Active</option>
+            <option value="Inactive" <?php echo $statusF==='Inactive'?'selected':''; ?>>Inactive</option>
+            <option value="Graduated" <?php echo $statusF==='Graduated'?'selected':''; ?>>Graduated</option>
           </select>
-          <button class="btn btn-ghost btn-sm"><i class="fas fa-file-export"></i> Export</button>
-        </div>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filter</button>
+        </form>
 
         <!-- Students Table -->
         <div class="panel animate-fade-up">
@@ -133,202 +200,79 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th><input type="checkbox" style="accent-color:var(--primary);"></th>
                     <th>Student</th>
                     <th>Roll No</th>
                     <th>Course</th>
                     <th>Semester</th>
                     <th>Section</th>
-                    <th>Attendance</th>
-                    <th>CGPA</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
+                  <?php foreach ($students as $i => $stu):
+                    $stuName = $stu['first_name'] . ' ' . $stu['last_name'];
+                    $stuInit = getInitials($stuName);
+                    $grad = $gradients[$i % count($gradients)];
+                  ?>
                   <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
                     <td>
                       <div class="table-user">
-                        <div class="table-avatar" style="background:var(--gradient-primary);">AK</div>
-                        <div class="table-user-info"><div class="name">Ananya Kumari</div><div class="email">ananya@GradeFlow.edu</div></div>
+                        <div class="table-avatar" style="background:<?php echo $grad; ?>;"><?php echo $stuInit; ?></div>
+                        <div class="table-user-info">
+                          <div class="name"><?php echo htmlspecialchars($stuName); ?></div>
+                          <div class="email"><?php echo htmlspecialchars($stu['email']); ?></div>
+                        </div>
                       </div>
                     </td>
-                    <td style="font-family:var(--font-mono);">CS2025001</td>
-                    <td>BSc CS</td>
-                    <td>6</td>
-                    <td>A</td>
-                    <td><span style="color:var(--success);font-weight:600;">92%</span></td>
-                    <td><strong>8.75</strong></td>
-                    <td><span class="status-badge active">Active</span></td>
+                    <td style="font-family:var(--font-mono);"><?php echo htmlspecialchars($stu['roll_number']); ?></td>
+                    <td><?php echo htmlspecialchars($stu['course_short']); ?></td>
+                    <td><?php echo $stu['semester']; ?></td>
+                    <td><?php echo htmlspecialchars($stu['section']); ?></td>
+                    <td><span class="status-badge <?php echo strtolower($stu['status']); ?>"><?php echo $stu['status']; ?></span></td>
                     <td>
                       <div class="table-actions">
-                        <button class="table-action-btn view" title="View"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this student? This action cannot be undone.');">
+                          <input type="hidden" name="delete_id" value="<?php echo $stu['id']; ?>">
+                          <button type="submit" class="table-action-btn delete" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                        </form>
                       </div>
                     </td>
                   </tr>
-                  <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
-                    <td>
-                      <div class="table-user">
-                        <div class="table-avatar" style="background:var(--gradient-secondary);">RS</div>
-                        <div class="table-user-info"><div class="name">Rahul Sharma</div><div class="email">rahul@GradeFlow.edu</div></div>
-                      </div>
-                    </td>
-                    <td style="font-family:var(--font-mono);">CS2025002</td>
-                    <td>BSc CS</td>
-                    <td>6</td>
-                    <td>A</td>
-                    <td><span style="color:var(--success);font-weight:600;">88%</span></td>
-                    <td><strong>8.12</strong></td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
-                    <td>
-                      <div class="table-user">
-                        <div class="table-avatar" style="background:var(--gradient-accent);">PG</div>
-                        <div class="table-user-info"><div class="name">Priya Gupta</div><div class="email">priya@GradeFlow.edu</div></div>
-                      </div>
-                    </td>
-                    <td style="font-family:var(--font-mono);">ME2025010</td>
-                    <td>BSc Mech</td>
-                    <td>4</td>
-                    <td>B</td>
-                    <td><span style="color:var(--warning);font-weight:600;">76%</span></td>
-                    <td><strong>7.65</strong></td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
-                    <td>
-                      <div class="table-user">
-                        <div class="table-avatar" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">VP</div>
-                        <div class="table-user-info"><div class="name">Vikash Patel</div><div class="email">vikash@GradeFlow.edu</div></div>
-                      </div>
-                    </td>
-                    <td style="font-family:var(--font-mono);">EC2025008</td>
-                    <td>BSc ECE</td>
-                    <td>2</td>
-                    <td>A</td>
-                    <td><span style="color:var(--success);font-weight:600;">91%</span></td>
-                    <td><strong>8.40</strong></td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
-                    <td>
-                      <div class="table-user">
-                        <div class="table-avatar" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7);">SK</div>
-                        <div class="table-user-info"><div class="name">Sneha Krishnan</div><div class="email">sneha@GradeFlow.edu</div></div>
-                      </div>
-                    </td>
-                    <td style="font-family:var(--font-mono);">CS2024015</td>
-                    <td>BSc CS</td>
-                    <td>4</td>
-                    <td>B</td>
-                    <td><span style="color:var(--danger);font-weight:600;">68%</span></td>
-                    <td><strong>7.10</strong></td>
-                    <td><span class="status-badge pending">Warning</span></td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><input type="checkbox" style="accent-color:var(--primary);"></td>
-                    <td>
-                      <div class="table-user">
-                        <div class="table-avatar" style="background:linear-gradient(135deg,#55efc4,#00b894);">AM</div>
-                        <div class="table-user-info"><div class="name">Arjun Mehta</div><div class="email">arjun@GradeFlow.edu</div></div>
-                      </div>
-                    </td>
-                    <td style="font-family:var(--font-mono);">CS2023042</td>
-                    <td>BSc CS</td>
-                    <td>6</td>
-                    <td>A</td>
-                    <td><span style="color:var(--success);font-weight:600;">95%</span></td>
-                    <td><strong>9.20</strong></td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                        <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                      </div>
-                    </td>
-                  </tr>
+                  <?php endforeach; ?>
+                  <?php if (empty($students)): ?>
+                  <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">No students found matching your criteria.</td></tr>
+                  <?php endif; ?>
                 </tbody>
               </table>
             </div>
           </div>
 
+          <!-- Pagination -->
+          <?php if ($totalPages > 1): ?>
           <div class="pagination">
-            <div class="pagination-info">Showing 1-6 of 523 students</div>
+            <div class="pagination-info">Showing <?php echo $offset+1; ?>-<?php echo min($offset+$perPage, $totalFiltered); ?> of <?php echo $totalFiltered; ?> students</div>
             <div class="pagination-buttons">
-              <button class="pagination-btn"><i class="fas fa-chevron-left"></i></button>
-              <button class="pagination-btn active">1</button>
-              <button class="pagination-btn">2</button>
-              <button class="pagination-btn">3</button>
-              <button class="pagination-btn">...</button>
-              <button class="pagination-btn">88</button>
-              <button class="pagination-btn"><i class="fas fa-chevron-right"></i></button>
+              <?php
+              $qp = $_GET;
+              if ($page > 1): $qp['page'] = $page - 1; ?>
+              <a href="?<?php echo http_build_query($qp); ?>" class="pagination-btn"><i class="fas fa-chevron-left"></i></a>
+              <?php endif; ?>
+              <?php for ($p = max(1, $page-2); $p <= min($totalPages, $page+2); $p++):
+                $qp['page'] = $p; ?>
+              <a href="?<?php echo http_build_query($qp); ?>" class="pagination-btn <?php echo $p==$page?'active':''; ?>"><?php echo $p; ?></a>
+              <?php endfor; ?>
+              <?php if ($page < $totalPages): $qp['page'] = $page + 1; ?>
+              <a href="?<?php echo http_build_query($qp); ?>" class="pagination-btn"><i class="fas fa-chevron-right"></i></a>
+              <?php endif; ?>
             </div>
           </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Delete Confirmation Modal -->
-  <div class="modal-overlay" id="deleteModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3><i class="fas fa-exclamation-triangle" style="color:var(--danger);margin-right:8px;"></i> Confirm Deletion</h3>
-        <button class="modal-close" onclick="closeModal('deleteModal')">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="color:var(--text-secondary);">Are you sure you want to delete this student record? This action cannot be undone and all associated data (marks, attendance, results) will be permanently removed.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('deleteModal')">Cancel</button>
-        <button class="btn btn-accent"><i class="fas fa-trash-alt"></i> Delete Student</button>
-      </div>
-    </div>
-  </div>
-
   <script src="js/app.js"></script>
-  <script>
-    // Delete buttons open modal
-    document.querySelectorAll('.table-action-btn.delete').forEach(btn => {
-      btn.addEventListener('click', () => openModal('deleteModal'));
-    });
-  </script>
 </body>
 </html>

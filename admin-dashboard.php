@@ -1,3 +1,61 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+requireAdmin();
+
+$admin = getAdminInfo();
+$initials = getInitials($admin['full_name']);
+
+// Fetch stats
+$totalStudents = $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
+$activeStudents = $pdo->query("SELECT COUNT(*) FROM students WHERE status='Active'")->fetchColumn();
+$totalMarks = $pdo->query("SELECT COUNT(DISTINCT CONCAT(student_id,'-',subject_id)) FROM marks")->fetchColumn();
+
+// Avg attendance
+$avgAttendance = $pdo->query("SELECT ROUND(
+    (SELECT COUNT(*) FROM attendance WHERE status='Present') * 100.0 / 
+    NULLIF((SELECT COUNT(*) FROM attendance), 0), 1
+)")->fetchColumn() ?: 0;
+
+// Pass rate
+$passRateResult = $pdo->query("
+    SELECT ROUND(
+        SUM(CASE WHEN total >= 40 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1
+    ) as pass_rate
+    FROM (
+        SELECT student_id, subject_id, (internal_marks + external_marks) as total FROM marks
+    ) sub
+")->fetch();
+$passRate = $passRateResult['pass_rate'] ?? 0;
+
+// Recent students
+$recentStudents = $pdo->query("
+    SELECT s.*, c.short_name as course_short 
+    FROM students s 
+    JOIN courses c ON s.course_id = c.id 
+    ORDER BY s.created_at DESC LIMIT 5
+")->fetchAll();
+
+// Recent activity - we'll build from recent marks and attendance
+$recentMarks = $pdo->query("
+    SELECT m.created_at, s.first_name, s.last_name, sub.subject_name, sub.semester, c.short_name, m.exam_type
+    FROM marks m
+    JOIN students s ON m.student_id = s.id
+    JOIN subjects sub ON m.subject_id = sub.id
+    JOIN courses c ON sub.course_id = c.id
+    ORDER BY m.created_at DESC LIMIT 5
+")->fetchAll();
+
+// Avatar gradients
+$gradients = [
+    'var(--gradient-primary)',
+    'var(--gradient-secondary)',
+    'var(--gradient-accent)',
+    'linear-gradient(135deg, #fdcb6e, #e17055)',
+    'linear-gradient(135deg, #a29bfe, #6c5ce7)',
+    'linear-gradient(135deg, #55efc4, #00b894)',
+];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -38,7 +96,7 @@
           </a>
           <a href="manage-students.php" class="sidebar-link">
             <span class="icon"><i class="fas fa-users"></i></span> Manage Students
-            <span class="badge">523</span>
+            <span class="badge"><?php echo $totalStudents; ?></span>
           </a>
         </div>
 
@@ -50,28 +108,11 @@
           <a href="manage-attendance.php" class="sidebar-link">
             <span class="icon"><i class="fas fa-clipboard-check"></i></span> Attendance
           </a>
-          <a href="#" class="sidebar-link">
-            <span class="icon"><i class="fas fa-poll"></i></span> Results
-            <span class="badge">New</span>
-          </a>
-        </div>
-
-        <div class="sidebar-nav-group">
-          <div class="sidebar-nav-label">Reports</div>
-          <a href="#" class="sidebar-link">
-            <span class="icon"><i class="fas fa-chart-pie"></i></span> Analytics
-          </a>
-          <a href="#" class="sidebar-link">
-            <span class="icon"><i class="fas fa-file-export"></i></span> Export Data
-          </a>
         </div>
 
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">System</div>
-          <a href="#" class="sidebar-link">
-            <span class="icon"><i class="fas fa-cog"></i></span> Settings
-          </a>
-          <a href="index.php" class="sidebar-link">
+          <a href="logout.php" class="sidebar-link">
             <span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout
           </a>
         </div>
@@ -79,9 +120,9 @@
 
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);">AD</div>
+          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);"><?php echo $initials; ?></div>
           <div class="sidebar-user-info">
-            <div class="name">Dr. Admin</div>
+            <div class="name"><?php echo htmlspecialchars($admin['full_name']); ?></div>
             <div class="role">Super Administrator</div>
           </div>
         </div>
@@ -106,42 +147,27 @@
             <span class="search-icon"><i class="fas fa-search"></i></span>
             <input type="text" placeholder="Search students, results...">
           </div>
-          <button class="topbar-icon-btn">
-            <i class="fas fa-bell"></i>
-            <span class="notification-dot"></span>
-          </button>
-          <button class="topbar-icon-btn">
-            <i class="fas fa-moon"></i>
-          </button>
         </div>
       </header>
 
       <!-- Dashboard Content -->
       <div class="dashboard-content">
 
-        <!-- Alert -->
-        <div class="alert alert-info animate-fade-down">
-          <i class="fas fa-info-circle"></i>
-          <span><strong>Semester 6 results</strong> are ready for review. <a href="#" style="color:var(--info);text-decoration:underline;">Publish Now →</a></span>
-        </div>
-
         <!-- Stat Cards -->
         <div class="stats-grid">
           <div class="stat-card animate-fade-up delay-1">
             <div class="stat-card-header">
               <div class="stat-icon primary"><i class="fas fa-user-graduate"></i></div>
-              <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 12%</span>
             </div>
-            <div class="stat-value">5,234</div>
+            <div class="stat-value"><?php echo number_format($totalStudents); ?></div>
             <div class="stat-label">Total Students</div>
           </div>
 
           <div class="stat-card animate-fade-up delay-2">
             <div class="stat-card-header">
               <div class="stat-icon secondary"><i class="fas fa-check-double"></i></div>
-              <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 3.1%</span>
             </div>
-            <div class="stat-value">98.2%</div>
+            <div class="stat-value"><?php echo $passRate; ?>%</div>
             <div class="stat-label">Overall Pass Rate</div>
           </div>
 
@@ -149,16 +175,15 @@
             <div class="stat-card-header">
               <div class="stat-icon accent"><i class="fas fa-file-alt"></i></div>
             </div>
-            <div class="stat-value">1,847</div>
+            <div class="stat-value"><?php echo number_format($totalMarks); ?></div>
             <div class="stat-label">Results Published</div>
           </div>
 
           <div class="stat-card animate-fade-up delay-4">
             <div class="stat-card-header">
               <div class="stat-icon success"><i class="fas fa-calendar-day"></i></div>
-              <span class="stat-trend down"><i class="fas fa-arrow-down"></i> 1.2%</span>
             </div>
-            <div class="stat-value">89.7%</div>
+            <div class="stat-value"><?php echo $avgAttendance; ?>%</div>
             <div class="stat-label">Avg Attendance</div>
           </div>
         </div>
@@ -188,94 +213,35 @@
                     </tr>
                   </thead>
                   <tbody>
+                    <?php foreach ($recentStudents as $i => $stu): 
+                      $stuInitials = getInitials($stu['first_name'] . ' ' . $stu['last_name']);
+                      $gradient = $gradients[$i % count($gradients)];
+                    ?>
                     <tr>
                       <td>
                         <div class="table-user">
-                          <div class="table-avatar" style="background:var(--gradient-primary);">AK</div>
+                          <div class="table-avatar" style="background:<?php echo $gradient; ?>;"><?php echo $stuInitials; ?></div>
                           <div class="table-user-info">
-                            <div class="name">Ananya Kumari</div>
-                            <div class="email">ananya@GradeFlow.edu</div>
+                            <div class="name"><?php echo htmlspecialchars($stu['first_name'] . ' ' . $stu['last_name']); ?></div>
+                            <div class="email"><?php echo htmlspecialchars($stu['email']); ?></div>
                           </div>
                         </div>
                       </td>
-                      <td>CS2025001</td>
-                      <td>BSc CS</td>
-                      <td>6</td>
-                      <td><span class="status-badge active">Active</span></td>
+                      <td><?php echo htmlspecialchars($stu['roll_number']); ?></td>
+                      <td><?php echo htmlspecialchars($stu['course_short']); ?></td>
+                      <td><?php echo $stu['semester']; ?></td>
+                      <td><span class="status-badge <?php echo strtolower($stu['status']); ?>"><?php echo $stu['status']; ?></span></td>
                       <td>
                         <div class="table-actions">
-                          <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                          <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                          <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
+                          <a href="manage-students.php?view=<?php echo $stu['id']; ?>" class="table-action-btn view"><i class="fas fa-eye"></i></a>
+                          <a href="manage-students.php?edit=<?php echo $stu['id']; ?>" class="table-action-btn edit"><i class="fas fa-edit"></i></a>
                         </div>
                       </td>
                     </tr>
-                    <tr>
-                      <td>
-                        <div class="table-user">
-                          <div class="table-avatar" style="background:var(--gradient-secondary);">RS</div>
-                          <div class="table-user-info">
-                            <div class="name">Rahul Sharma</div>
-                            <div class="email">rahul@GradeFlow.edu</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>CS2025002</td>
-                      <td>BSc CS</td>
-                      <td>6</td>
-                      <td><span class="status-badge active">Active</span></td>
-                      <td>
-                        <div class="table-actions">
-                          <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                          <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                          <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div class="table-user">
-                          <div class="table-avatar" style="background:var(--gradient-accent);">PG</div>
-                          <div class="table-user-info">
-                            <div class="name">Priya Gupta</div>
-                            <div class="email">priya@GradeFlow.edu</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>ME2025010</td>
-                      <td>BSc Mech</td>
-                      <td>4</td>
-                      <td><span class="status-badge active">Active</span></td>
-                      <td>
-                        <div class="table-actions">
-                          <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                          <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                          <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div class="table-user">
-                          <div class="table-avatar" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">VP</div>
-                          <div class="table-user-info">
-                            <div class="name">Vikash Patel</div>
-                            <div class="email">vikash@GradeFlow.edu</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>EC2025008</td>
-                      <td>BSc ECE</td>
-                      <td>2</td>
-                      <td><span class="status-badge active">Active</span></td>
-                      <td>
-                        <div class="table-actions">
-                          <button class="table-action-btn view"><i class="fas fa-eye"></i></button>
-                          <button class="table-action-btn edit"><i class="fas fa-edit"></i></button>
-                          <button class="table-action-btn delete"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                      </td>
-                    </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($recentStudents)): ?>
+                    <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No students yet. <a href="add-student.php">Add one</a></td></tr>
+                    <?php endif; ?>
                   </tbody>
                 </table>
               </div>
@@ -303,9 +269,9 @@
                     <div class="icon" style="background:rgba(253,121,168,0.15);color:var(--accent);"><i class="fas fa-clipboard-check"></i></div>
                     <span>Attendance</span>
                   </a>
-                  <a href="#" class="quick-action-btn">
-                    <div class="icon" style="background:rgba(0,184,148,0.15);color:var(--success);"><i class="fas fa-file-export"></i></div>
-                    <span>Export Data</span>
+                  <a href="manage-students.php" class="quick-action-btn">
+                    <div class="icon" style="background:rgba(0,184,148,0.15);color:var(--success);"><i class="fas fa-users"></i></div>
+                    <span>All Students</span>
                   </a>
                 </div>
               </div>
@@ -318,42 +284,28 @@
               </div>
               <div class="panel-body">
                 <div class="activity-feed">
+                  <?php if (!empty($recentMarks)): ?>
+                  <?php foreach (array_slice($recentMarks, 0, 4) as $m): ?>
                   <div class="activity-item">
-                    <div class="activity-icon" style="background:rgba(0,184,148,0.15);color:var(--success);">
-                      <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="activity-content">
-                      <p><strong>Semester 5 results</strong> published for BSc CS batch 2023</p>
-                      <div class="activity-time">2 hours ago</div>
-                    </div>
-                  </div>
-                  <div class="activity-item">
-                    <div class="activity-icon" style="background:rgba(108,92,231,0.15);color:var(--primary-light);">
-                      <i class="fas fa-user-plus"></i>
-                    </div>
-                    <div class="activity-content">
-                      <p><strong>42 new students</strong> enrolled in BSc CS program</p>
-                      <div class="activity-time">5 hours ago</div>
-                    </div>
-                  </div>
-                  <div class="activity-item">
-                    <div class="activity-icon" style="background:rgba(253,121,168,0.15);color:var(--accent);">
+                    <div class="activity-icon" style="background:rgba(0,206,201,0.15);color:var(--secondary);">
                       <i class="fas fa-pen-alt"></i>
                     </div>
                     <div class="activity-content">
-                      <p><strong>Midterm marks</strong> entered for Sem 6 DBMS subject</p>
-                      <div class="activity-time">1 day ago</div>
+                      <p><strong><?php echo htmlspecialchars($m['exam_type']); ?> marks</strong> entered for <?php echo htmlspecialchars($m['first_name'] . ' ' . $m['last_name']); ?> — <?php echo htmlspecialchars($m['subject_name']); ?></p>
+                      <div class="activity-time"><?php echo date('M j, Y', strtotime($m['created_at'])); ?></div>
                     </div>
                   </div>
+                  <?php endforeach; ?>
+                  <?php else: ?>
                   <div class="activity-item">
-                    <div class="activity-icon" style="background:rgba(253,203,110,0.15);color:var(--warning);">
-                      <i class="fas fa-exclamation-triangle"></i>
+                    <div class="activity-icon" style="background:rgba(108,92,231,0.15);color:var(--primary-light);">
+                      <i class="fas fa-info-circle"></i>
                     </div>
                     <div class="activity-content">
-                      <p><strong>15 students</strong> below minimum attendance in Sem 4</p>
-                      <div class="activity-time">2 days ago</div>
+                      <p>No recent activity. Start by adding students and entering marks.</p>
                     </div>
                   </div>
+                  <?php endif; ?>
                 </div>
               </div>
             </div>

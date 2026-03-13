@@ -1,3 +1,63 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+requireAdmin();
+
+$admin = getAdminInfo();
+$initials = getInitials($admin['full_name']);
+
+$success = '';
+$error = '';
+
+// Fetch courses for dropdown
+$courses = $pdo->query("SELECT * FROM courses ORDER BY course_name")->fetchAll();
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $firstName = trim($_POST['first_name'] ?? '');
+    $lastName  = trim($_POST['last_name'] ?? '');
+    $dob       = $_POST['dob'] ?? '';
+    $gender    = $_POST['gender'] ?? '';
+    $email     = trim($_POST['email'] ?? '');
+    $phone     = trim($_POST['phone'] ?? '');
+    $address   = trim($_POST['address'] ?? '');
+    $rollNo    = trim($_POST['roll_number'] ?? '');
+    $regNo     = trim($_POST['reg_number'] ?? '');
+    $courseId   = intval($_POST['course_id'] ?? 0);
+    $semester   = intval($_POST['semester'] ?? 0);
+    $section    = $_POST['section'] ?? 'A';
+    $admYear    = intval($_POST['admission_year'] ?? 0);
+    $fatherName = trim($_POST['father_name'] ?? '');
+    $motherName = trim($_POST['mother_name'] ?? '');
+    $guardianContact = trim($_POST['guardian_contact'] ?? '');
+    $guardianEmail   = trim($_POST['guardian_email'] ?? '');
+    $password  = $_POST['password'] ?? '';
+    $confirmPw = $_POST['confirm_password'] ?? '';
+
+    // Validation
+    if (empty($firstName) || empty($lastName) || empty($rollNo) || empty($email) || $courseId === 0 || $semester === 0 || $admYear === 0 || empty($password)) {
+        $error = 'Please fill in all required fields.';
+    } elseif ($password !== $confirmPw) {
+        $error = 'Passwords do not match.';
+    } elseif (strlen($password) < 6) {
+        $error = 'Password must be at least 6 characters.';
+    } else {
+        // Check if roll number already exists
+        $check = $pdo->prepare("SELECT id FROM students WHERE roll_number = ?");
+        $check->execute([$rollNo]);
+        if ($check->fetch()) {
+            $error = 'A student with this roll number already exists.';
+        } else {
+            $hashedPw = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO students (roll_number, first_name, last_name, email, phone, dob, gender, address, course_id, semester, section, admission_year, father_name, mother_name, guardian_contact, guardian_email, password, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Active')");
+            $stmt->execute([$rollNo, $firstName, $lastName, $email, $phone, $dob ?: null, $gender ?: null, $address, $courseId, $semester, $section, $admYear, $fatherName, $motherName, $guardianContact, $guardianEmail, $hashedPw]);
+            $success = "Student $firstName $lastName (Roll: $rollNo) registered successfully!";
+        }
+    }
+}
+
+$totalStudents = $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,24 +87,22 @@
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Student Management</div>
           <a href="add-student.php" class="sidebar-link active"><span class="icon"><i class="fas fa-user-plus"></i></span> Add Student</a>
-          <a href="manage-students.php" class="sidebar-link"><span class="icon"><i class="fas fa-users"></i></span> Manage Students</a>
+          <a href="manage-students.php" class="sidebar-link"><span class="icon"><i class="fas fa-users"></i></span> Manage Students <span class="badge"><?php echo $totalStudents; ?></span></a>
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Academics</div>
           <a href="add-marks.php" class="sidebar-link"><span class="icon"><i class="fas fa-pen-alt"></i></span> Add Marks</a>
           <a href="manage-attendance.php" class="sidebar-link"><span class="icon"><i class="fas fa-clipboard-check"></i></span> Attendance</a>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-poll"></i></span> Results</a>
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">System</div>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-cog"></i></span> Settings</a>
-          <a href="index.php" class="sidebar-link"><span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout</a>
+          <a href="logout.php" class="sidebar-link"><span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout</a>
         </div>
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);">AD</div>
-          <div class="sidebar-user-info"><div class="name">Dr. Admin</div><div class="role">Super Administrator</div></div>
+          <div class="sidebar-user-avatar" style="background:var(--gradient-accent);"><?php echo $initials; ?></div>
+          <div class="sidebar-user-info"><div class="name"><?php echo htmlspecialchars($admin['full_name']); ?></div><div class="role">Super Administrator</div></div>
         </div>
       </div>
     </aside>
@@ -62,12 +120,27 @@
       </header>
 
       <div class="dashboard-content">
+
+        <?php if ($success): ?>
+        <div class="alert alert-success animate-fade-down" style="margin-bottom:20px;">
+          <i class="fas fa-check-circle"></i>
+          <span><?php echo htmlspecialchars($success); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($error): ?>
+        <div class="alert alert-danger animate-fade-down" style="margin-bottom:20px;">
+          <i class="fas fa-exclamation-circle"></i>
+          <span><?php echo htmlspecialchars($error); ?></span>
+        </div>
+        <?php endif; ?>
+
         <div class="panel animate-fade-up">
           <div class="panel-header">
             <h3><i class="fas fa-user-plus" style="margin-right:8px;color:var(--primary-light);"></i> Student Registration Form</h3>
           </div>
           <div class="panel-body">
-            <form>
+            <form method="POST" action="">
               <!-- Personal Information -->
               <h4 style="font-size:1rem;margin-bottom:20px;color:var(--primary-light);display:flex;align-items:center;gap:8px;">
                 <i class="fas fa-user"></i> Personal Information
@@ -76,26 +149,26 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">First Name *</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="Enter first name" required>
+                  <input type="text" name="first_name" class="form-input form-input-plain" placeholder="Enter first name" required value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Last Name *</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="Enter last name" required>
+                  <input type="text" name="last_name" class="form-input form-input-plain" placeholder="Enter last name" required value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>">
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label">Date of Birth *</label>
-                  <input type="date" class="form-input form-input-plain" required>
+                  <label class="form-label">Date of Birth</label>
+                  <input type="date" name="dob" class="form-input form-input-plain" value="<?php echo htmlspecialchars($_POST['dob'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Gender *</label>
-                  <select class="form-select" required>
+                  <label class="form-label">Gender</label>
+                  <select name="gender" class="form-select">
                     <option value="">Select Gender</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Other</option>
+                    <option <?php echo ($_POST['gender'] ?? '') === 'Male' ? 'selected' : ''; ?>>Male</option>
+                    <option <?php echo ($_POST['gender'] ?? '') === 'Female' ? 'selected' : ''; ?>>Female</option>
+                    <option <?php echo ($_POST['gender'] ?? '') === 'Other' ? 'selected' : ''; ?>>Other</option>
                   </select>
                 </div>
               </div>
@@ -103,17 +176,17 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input form-input-plain" placeholder="student@email.com" required>
+                  <input type="email" name="email" class="form-input form-input-plain" placeholder="student@email.com" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Phone Number *</label>
-                  <input type="tel" class="form-input form-input-plain" placeholder="+91 98765 43210" required>
+                  <label class="form-label">Phone Number</label>
+                  <input type="tel" name="phone" class="form-input form-input-plain" placeholder="+91 98765 43210" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
                 </div>
               </div>
 
               <div class="form-group">
                 <label class="form-label">Address</label>
-                <textarea class="form-input form-input-plain" rows="3" placeholder="Enter complete address" style="resize: vertical; padding-top: 14px;"></textarea>
+                <textarea name="address" class="form-input form-input-plain" rows="3" placeholder="Enter complete address" style="resize: vertical; padding-top: 14px;"><?php echo htmlspecialchars($_POST['address'] ?? ''); ?></textarea>
               </div>
 
               <div style="height:1px;background:var(--border-color);margin:32px 0;"></div>
@@ -126,40 +199,31 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Roll Number *</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="e.g., CS2025050" required>
+                  <input type="text" name="roll_number" class="form-input form-input-plain" placeholder="e.g., CS2025050" required value="<?php echo htmlspecialchars($_POST['roll_number'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Registration Number</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="University Registration No.">
+                  <input type="text" name="reg_number" class="form-input form-input-plain" placeholder="University Registration No." value="<?php echo htmlspecialchars($_POST['reg_number'] ?? ''); ?>">
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Course / Program *</label>
-                  <select class="form-select" required>
+                  <select name="course_id" class="form-select" required>
                     <option value="">Select Course</option>
-                    <option>BSc Computer Science</option>
-                    <option>BSc Electronics</option>
-                    <option>BSc Mechanical Engineering</option>
-                    <option>BSc Civil Engineering</option>
-                    <option>BBA</option>
-                    <option>BCA</option>
-                    <option>MSc Computer Science</option>
+                    <?php foreach ($courses as $c): ?>
+                    <option value="<?php echo $c['id']; ?>" <?php echo (intval($_POST['course_id'] ?? 0) === $c['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['course_name']); ?></option>
+                    <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Current Semester *</label>
-                  <select class="form-select" required>
+                  <select name="semester" class="form-select" required>
                     <option value="">Select Semester</option>
-                    <option>Semester 1</option>
-                    <option>Semester 2</option>
-                    <option>Semester 3</option>
-                    <option>Semester 4</option>
-                    <option>Semester 5</option>
-                    <option>Semester 6</option>
-                    <option>Semester 7</option>
-                    <option>Semester 8</option>
+                    <?php for ($s = 1; $s <= 8; $s++): ?>
+                    <option value="<?php echo $s; ?>" <?php echo (intval($_POST['semester'] ?? 0) === $s) ? 'selected' : ''; ?>>Semester <?php echo $s; ?></option>
+                    <?php endfor; ?>
                   </select>
                 </div>
               </div>
@@ -167,22 +231,20 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Section</label>
-                  <select class="form-select">
+                  <select name="section" class="form-select">
                     <option value="">Select Section</option>
-                    <option>Section A</option>
-                    <option>Section B</option>
-                    <option>Section C</option>
+                    <?php foreach (['A','B','C'] as $sec): ?>
+                    <option value="<?php echo $sec; ?>" <?php echo ($_POST['section'] ?? '') === $sec ? 'selected' : ''; ?>>Section <?php echo $sec; ?></option>
+                    <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Admission Year *</label>
-                  <select class="form-select" required>
+                  <select name="admission_year" class="form-select" required>
                     <option value="">Select Year</option>
-                    <option>2026</option>
-                    <option>2025</option>
-                    <option>2024</option>
-                    <option>2023</option>
-                    <option>2022</option>
+                    <?php for ($y = date('Y'); $y >= date('Y') - 5; $y--): ?>
+                    <option value="<?php echo $y; ?>" <?php echo (intval($_POST['admission_year'] ?? 0) === $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                    <?php endfor; ?>
                   </select>
                 </div>
               </div>
@@ -197,22 +259,22 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Father's Name</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="Enter father's name">
+                  <input type="text" name="father_name" class="form-input form-input-plain" placeholder="Enter father's name" value="<?php echo htmlspecialchars($_POST['father_name'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Mother's Name</label>
-                  <input type="text" class="form-input form-input-plain" placeholder="Enter mother's name">
+                  <input type="text" name="mother_name" class="form-input form-input-plain" placeholder="Enter mother's name" value="<?php echo htmlspecialchars($_POST['mother_name'] ?? ''); ?>">
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Guardian Contact</label>
-                  <input type="tel" class="form-input form-input-plain" placeholder="Guardian phone number">
+                  <input type="tel" name="guardian_contact" class="form-input form-input-plain" placeholder="Guardian phone number" value="<?php echo htmlspecialchars($_POST['guardian_contact'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Guardian Email</label>
-                  <input type="email" class="form-input form-input-plain" placeholder="guardian@email.com">
+                  <input type="email" name="guardian_email" class="form-input form-input-plain" placeholder="guardian@email.com" value="<?php echo htmlspecialchars($_POST['guardian_email'] ?? ''); ?>">
                 </div>
               </div>
 
@@ -226,11 +288,11 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Password *</label>
-                  <input type="password" class="form-input form-input-plain" placeholder="Set initial password" required>
+                  <input type="password" name="password" class="form-input form-input-plain" placeholder="Set initial password" required>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Confirm Password *</label>
-                  <input type="password" class="form-input form-input-plain" placeholder="Confirm password" required>
+                  <input type="password" name="confirm_password" class="form-input form-input-plain" placeholder="Confirm password" required>
                 </div>
               </div>
 

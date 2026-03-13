@@ -1,3 +1,40 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+
+$error = '';
+$success = '';
+
+// If already logged in, redirect
+if (isset($_SESSION['admin_id'])) {
+    header('Location: admin-dashboard.php');
+    exit;
+}
+
+// Handle login POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $security_code = trim($_POST['security_code'] ?? '');
+
+    if (empty($username) || empty($password) || empty($security_code)) {
+        $error = 'All fields are required';
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = ?");
+        $stmt->execute([$username]);
+        $admin = $stmt->fetch();
+
+        if ($admin && password_verify($password, $admin['password']) && $admin['security_code'] === $security_code) {
+            $_SESSION['admin_id'] = $admin['id'];
+            $_SESSION['admin_username'] = $admin['username'];
+            $_SESSION['admin_name'] = $admin['full_name'];
+            $success = 'Authentication successful! Redirecting...';
+        } else {
+            $error = 'Invalid credentials. Please check username, password and security code.';
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,13 +93,20 @@
           <p>Authorized personnel only. Enter your admin credentials.</p>
         </div>
 
-        <form id="adminLoginForm" action="#" method="POST" novalidate>
+        <?php if ($error): ?>
+        <div class="alert alert-danger" style="margin-bottom: 20px;">
+          <i class="fas fa-exclamation-circle"></i>
+          <span><?php echo htmlspecialchars($error); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <form id="adminLoginForm" action="" method="POST" novalidate>
           <!-- Username Field -->
           <div class="form-group">
             <label class="form-label" for="admin-username">Admin Username</label>
             <div class="form-input-wrapper">
               <span class="input-icon" id="usernameIcon"><i class="fas fa-user-shield"></i></span>
-              <input type="text" id="admin-username" name="username" class="form-input" placeholder="Enter admin username" autocomplete="username">
+              <input type="text" id="admin-username" name="username" class="form-input" placeholder="Enter admin username" autocomplete="username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
               <span class="validation-icon" id="usernameValidIcon"><i class="fas fa-check-circle"></i></span>
             </div>
             <div class="v-error-msg" id="usernameError"><i class="fas fa-exclamation-circle"></i> <span></span></div>
@@ -115,11 +159,6 @@
             <span class="spinner"><span class="spinner-circle"></span> Verifying...</span>
           </button>
 
-          <!-- Login Attempts Warning -->
-          <div class="login-attempts" id="loginAttempts">
-            <i class="fas fa-info-circle"></i> <span id="attemptCount">5</span> attempts remaining
-          </div>
-
           <div class="alert alert-warning" style="margin-top: 24px;">
             <i class="fas fa-exclamation-triangle"></i>
             <span>This portal is restricted to authorized administrators only. All login attempts are logged.</span>
@@ -157,9 +196,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const bars = [document.getElementById('bar1'), document.getElementById('bar2'), document.getElementById('bar3'), document.getElementById('bar4')];
   const codeCount = document.getElementById('codeCount');
   const capsWarning = document.getElementById('capsWarning');
-  const loginAttemptsEl = document.getElementById('loginAttempts');
-  const attemptCountEl = document.getElementById('attemptCount');
-  let maxAttempts = 5, currentAttempts = 0;
+
+  <?php if ($success): ?>
+  // Auto-redirect on success
+  showToast('<?php echo $success; ?>', 'success');
+  setTimeout(function() { window.location.href = 'admin-dashboard.php'; }, 1200);
+  <?php endif; ?>
 
   /* ---- Toast ---- */
   function showToast(message, type) {
@@ -196,9 +238,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const v = usernameInput.value.trim();
     if (!v) { showError(usernameInput, usernameError, usernameIcon, usernameValidIcon, 'Username is required'); return false; }
     if (v.length < 3) { showError(usernameInput, usernameError, usernameIcon, usernameValidIcon, 'Username must be at least 3 characters'); return false; }
-    if (v.length > 30) { showError(usernameInput, usernameError, usernameIcon, usernameValidIcon, 'Username must not exceed 30 characters'); return false; }
-    if (!/^[a-zA-Z0-9_\.]+$/.test(v)) { showError(usernameInput, usernameError, usernameIcon, usernameValidIcon, 'Only letters, numbers, dots & underscores allowed'); return false; }
-    if (/^\d/.test(v)) { showError(usernameInput, usernameError, usernameIcon, usernameValidIcon, 'Username cannot start with a number'); return false; }
     clearError(usernameInput, usernameError, usernameIcon, usernameValidIcon);
     showSuccess(usernameInput, usernameIcon, usernameValidIcon);
     return true;
@@ -208,7 +247,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const v = passwordInput.value;
     if (!v) { showError(passwordInput, passwordError, passwordIcon, null, 'Password is required'); resetStrength(); return false; }
     if (v.length < 6) { showError(passwordInput, passwordError, passwordIcon, null, 'Password must be at least 6 characters'); return false; }
-    if (v.length > 50) { showError(passwordInput, passwordError, passwordIcon, null, 'Password must not exceed 50 characters'); return false; }
     clearError(passwordInput, passwordError, passwordIcon, null);
     showSuccess(passwordInput, passwordIcon, null);
     return true;
@@ -280,28 +318,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* ---- Submit ---- */
   form.addEventListener('submit', function(e) {
-    e.preventDefault();
     const u=validateUsername(), p=validatePassword(), c=validateCode();
     if (!u||!p||!c) {
+      e.preventDefault();
       if(!u) usernameInput.focus(); else if(!p) passwordInput.focus(); else codeInput.focus();
       showToast('Please fix the errors before proceeding','error');
       form.style.animation='shake 0.4s ease'; setTimeout(()=>form.style.animation='',400);
       return;
     }
-    currentAttempts++;
-    if (currentAttempts>=maxAttempts) { showToast('Too many attempts. Account locked for security.','error'); submitBtn.disabled=true; submitBtn.style.opacity='0.5'; return; }
-    const rem = maxAttempts - currentAttempts;
-    attemptCountEl.textContent = rem;
-    if (currentAttempts>=2) loginAttemptsEl.classList.add('show');
-
+    // Show loading state while form submits
     submitBtn.classList.add('loading');
-    setTimeout(function() {
-      submitBtn.classList.remove('loading');
-      showToast('Authentication successful! Redirecting...','success');
-      submitBtn.style.background='var(--gradient-secondary)';
-      submitBtn.style.animation='successPulse 0.6s ease';
-      setTimeout(()=> window.location.href='admin-dashboard.php', 1200);
-    }, 1800);
   });
 
   /* ---- Paste restriction on security code ---- */

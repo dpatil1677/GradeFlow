@@ -1,3 +1,94 @@
+<?php
+require_once 'includes/db_connect.php';
+require_once 'includes/auth.php';
+
+$result = null;
+$error = '';
+$searchRoll = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['roll'])) {
+    $searchRoll = trim($_POST['roll_number'] ?? $_GET['roll'] ?? '');
+    
+    if (empty($searchRoll)) {
+        $error = 'Please enter a roll number.';
+    } else {
+        // Find student
+        $stmt = $pdo->prepare("SELECT s.*, c.course_name, c.short_name FROM students s JOIN courses c ON s.course_id=c.id WHERE s.roll_number = ?");
+        $stmt->execute([$searchRoll]);
+        $studentData = $stmt->fetch();
+        
+        if (!$studentData) {
+            $error = 'No student found with roll number: ' . $searchRoll;
+        } else {
+            // Get latest semester marks
+            $latestSem = $pdo->prepare("SELECT MAX(sub.semester) FROM marks m JOIN subjects sub ON m.subject_id=sub.id WHERE m.student_id=? AND sub.course_id=?");
+            $latestSem->execute([$studentData['id'], $studentData['course_id']]);
+            $latestSemester = $latestSem->fetchColumn();
+            
+            if (!$latestSemester) {
+                $error = 'No results published yet for this student.';
+            } else {
+                $marksStmt = $pdo->prepare("
+                    SELECT m.*, sub.subject_name, sub.subject_code, sub.max_internal, sub.max_external
+                    FROM marks m
+                    JOIN subjects sub ON m.subject_id=sub.id
+                    WHERE m.student_id=? AND sub.semester=? AND sub.course_id=?
+                    ORDER BY sub.subject_code
+                ");
+                $marksStmt->execute([$studentData['id'], $latestSemester, $studentData['course_id']]);
+                $marks = $marksStmt->fetchAll();
+                
+                $totalObt = 0;
+                $totalMax = 0;
+                $subjects = [];
+                $passed = true;
+                
+                foreach ($marks as $m) {
+                    $total = $m['internal_marks'] + $m['external_marks'];
+                    $max = $m['max_internal'] + $m['max_external'];
+                    $pct = $max > 0 ? round($total * 100 / $max, 1) : 0;
+                    $grade = calculateGrade($pct);
+                    $subPassed = $pct >= 40;
+                    if (!$subPassed) $passed = false;
+                    
+                    $totalObt += $total;
+                    $totalMax += $max;
+                    $subjects[] = [
+                        'code' => $m['subject_code'],
+                        'name' => $m['subject_name'],
+                        'internal' => intval($m['internal_marks']),
+                        'external' => intval($m['external_marks']),
+                        'max_internal' => $m['max_internal'],
+                        'max_external' => $m['max_external'],
+                        'total' => $total,
+                        'max' => $max,
+                        'pct' => $pct,
+                        'grade' => $grade,
+                        'passed' => $subPassed,
+                        'exam' => $m['exam_type'],
+                    ];
+                }
+                
+                $overallPct = $totalMax > 0 ? round($totalObt * 100 / $totalMax, 1) : 0;
+                $sgpa = round($overallPct / 9.5, 2);
+                
+                $result = [
+                    'student' => $studentData,
+                    'semester' => $latestSemester,
+                    'subjects' => $subjects,
+                    'total_obtained' => $totalObt,
+                    'total_max' => $totalMax,
+                    'percentage' => $overallPct,
+                    'sgpa' => $sgpa,
+                    'grade' => calculateGrade($overallPct),
+                    'result_class' => getResultClass($overallPct),
+                    'passed' => $passed,
+                ];
+            }
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,13 +103,22 @@
 </head>
 <body>
 
-  <!-- Navbar -->
-  <nav class="navbar scrolled" id="navbar">
+  <!-- Background Orbs -->
+  <div class="hero-bg" style="position:fixed;z-index:0;">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="hero-grid"></div>
+  </div>
+
+  <!-- ===== NAVBAR (same as index.php) ===== -->
+  <nav class="navbar" id="navbar">
     <div class="container">
       <a href="index.php" class="navbar-brand">
         <div class="logo-icon">🎓</div>
         <span>Grade<span class="text-gradient">Flow</span></span>
       </a>
+
       <div class="navbar-nav" id="navMenu">
         <a href="index.php">Home</a>
         <a href="index.php#features">Features</a>
@@ -26,6 +126,7 @@
         <a href="result-search.php" class="active">Results</a>
         <a href="index.php#contact">Contact</a>
       </div>
+
       <div class="navbar-actions">
         <a href="student-login.php" class="btn btn-ghost btn-sm">Student Login</a>
         <a href="admin-login.php" class="btn btn-primary btn-sm">Admin Portal</a>
@@ -33,169 +134,139 @@
     </div>
   </nav>
 
-  <div class="result-search-page">
-    <div class="hero-bg">
-      <div class="orb orb-1" style="opacity:0.2;"></div>
-      <div class="orb orb-2" style="opacity:0.15;"></div>
-    </div>
+  <!-- Main Content -->
+  <div style="position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 20px 40px;">
 
-    <div class="container">
-      <!-- Search Section -->
-      <div class="search-hero animate-fade-up">
-        <div class="section-badge"><i class="fas fa-search"></i> Result Lookup</div>
-        <h1>Search Your <span class="text-gradient">Results</span></h1>
-        <p>Enter your roll number to instantly access your examination results</p>
+    <!-- Search Section -->
+    <div style="text-align:center;margin-bottom:40px;" class="animate-fade-up">
+      <div class="hero-badge" style="margin-bottom:24px;">
+        <i class="fas fa-search"></i>
+        <span>RESULT LOOKUP</span>
+      </div>
+      <h1 style="font-size:2.8rem;font-weight:800;margin-bottom:16px;font-family:var(--font-heading);">
+        Search Your <span class="text-gradient">Results</span>
+      </h1>
+      <p style="color:var(--text-secondary);font-size:1.05rem;margin-bottom:36px;max-width:500px;margin-left:auto;margin-right:auto;">
+        Enter your roll number to instantly access your examination results
+      </p>
 
-        <div class="search-box">
-          <span class="search-icon"><i class="fas fa-search"></i></span>
-          <input type="text" class="form-input" id="rollInput" placeholder="Enter Roll Number (e.g., CS2025001)" value="CS2025001">
-          <button class="btn btn-primary" onclick="showResult()">
+      <form method="POST" style="max-width:520px;margin:0 auto;">
+        <div style="display:flex;gap:12px;background:var(--bg-glass);border:1px solid var(--border-color);border-radius:var(--radius-lg);padding:6px;backdrop-filter:blur(20px);">
+          <div style="flex:1;position:relative;display:flex;align-items:center;">
+            <i class="fas fa-search" style="position:absolute;left:16px;color:var(--text-muted);font-size:0.95rem;"></i>
+            <input type="text" name="roll_number" placeholder="CS2025001" value="<?php echo htmlspecialchars($searchRoll); ?>" required
+              style="width:100%;padding:12px 16px 12px 44px;background:transparent;border:none;color:var(--text-primary);font-size:0.95rem;font-family:inherit;outline:none;">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="border-radius:var(--radius-md);white-space:nowrap;">
             <i class="fas fa-arrow-right"></i> Search
           </button>
         </div>
-      </div>
+      </form>
+    </div>
 
-      <!-- Result Display (shown after search) -->
-      <div id="resultSection" style="display:none; padding-bottom: 80px;">
-        <!-- Student Info Card -->
-        <div class="glass-card animate-fade-up" style="margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:24px;">
-          <div style="display:flex;align-items:center;gap:20px;">
-            <div class="profile-avatar" style="width:72px;height:72px;font-size:1.6rem;margin:0;">AK</div>
-            <div>
-              <h3 style="font-size:1.3rem;margin-bottom:4px;">Ananya Kumari</h3>
-              <p style="color:var(--text-muted);font-size:0.9rem;">Roll No: CS2025001 • BSc Computer Science • Semester 6</p>
-            </div>
-          </div>
-          <div style="display:flex;gap:32px;flex-wrap:wrap;">
-            <div style="text-align:center;">
-              <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">CGPA</div>
-              <div style="font-size:1.6rem;font-weight:800;color:var(--primary-light);">8.75</div>
-            </div>
-            <div style="text-align:center;">
-              <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Percentage</div>
-              <div style="font-size:1.6rem;font-weight:800;color:var(--success);">86.17%</div>
-            </div>
-            <div style="text-align:center;">
-              <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Result</div>
-              <div><span class="status-badge pass" style="font-size:0.85rem;padding:6px 16px;">Distinction</span></div>
-            </div>
-          </div>
+    <?php if ($error): ?>
+    <div class="alert alert-danger animate-fade-up" style="margin-top:24px;">
+      <i class="fas fa-exclamation-circle"></i> <span><?php echo htmlspecialchars($error); ?></span>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($result): 
+      $stu = $result['student'];
+      $stuInitials = getInitials($stu['first_name'] . ' ' . $stu['last_name']);
+    ?>
+    <!-- Student Info -->
+    <div class="panel animate-fade-up" style="margin-top:24px;">
+      <div class="panel-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+        <div class="table-avatar" style="background:var(--gradient-primary);width:56px;height:56px;font-size:1.2rem;"><?php echo $stuInitials; ?></div>
+        <div style="flex:1;">
+          <div style="font-size:1.1rem;font-weight:700;"><?php echo htmlspecialchars($stu['first_name'] . ' ' . $stu['last_name']); ?></div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">Roll: <?php echo htmlspecialchars($stu['roll_number']); ?> | <?php echo htmlspecialchars($stu['course_name']); ?> | Semester <?php echo $result['semester']; ?></div>
         </div>
-
-        <!-- Result Table -->
-        <div class="result-card animate-fade-up" style="animation-delay:0.2s;">
-          <div class="result-header">
-            <div class="result-header-left">
-              <h3>Semester 6 — Midterm Examination 2026</h3>
-              <p>BSc Computer Science • University of Technology</p>
-            </div>
-            <button class="btn btn-ghost btn-sm"><i class="fas fa-download"></i> Download PDF</button>
+        <div style="display:flex;gap:24px;text-align:center;">
+          <div>
+            <div style="font-size:1.2rem;font-weight:800;color:<?php echo $result['passed'] ? 'var(--success)' : 'var(--danger)'; ?>;"><?php echo $result['percentage']; ?>%</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">Percentage</div>
           </div>
-          <div class="panel-body" style="padding:0;">
-            <div class="data-table-wrapper">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Subject</th>
-                    <th>Internal (30)</th>
-                    <th>External (70)</th>
-                    <th>Total (100)</th>
-                    <th>Grade</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">CS601</td>
-                    <td><strong>Data Structures & Algorithms</strong></td>
-                    <td>28</td><td>64</td><td><strong>92</strong></td>
-                    <td><span class="grade-badge grade-a">A+</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">CS602</td>
-                    <td><strong>Database Management Systems</strong></td>
-                    <td>26</td><td>62</td><td><strong>88</strong></td>
-                    <td><span class="grade-badge grade-a">A</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">CS603</td>
-                    <td><strong>Operating Systems</strong></td>
-                    <td>29</td><td>66</td><td><strong>95</strong></td>
-                    <td><span class="grade-badge grade-a">A+</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">CS604</td>
-                    <td><strong>Computer Networks</strong></td>
-                    <td>22</td><td>56</td><td><strong>78</strong></td>
-                    <td><span class="grade-badge grade-b">B+</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">CS605</td>
-                    <td><strong>Software Engineering</strong></td>
-                    <td>25</td><td>59</td><td><strong>84</strong></td>
-                    <td><span class="grade-badge grade-a">A</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                  <tr>
-                    <td style="font-family:var(--font-mono);color:var(--text-muted);">MA604</td>
-                    <td><strong>Mathematics IV</strong></td>
-                    <td>24</td><td>56</td><td><strong>80</strong></td>
-                    <td><span class="grade-badge grade-a">A</span></td>
-                    <td><span class="status-badge pass">Pass</span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div>
+            <div style="font-size:1.2rem;font-weight:800;color:var(--primary-light);"><?php echo $result['sgpa']; ?></div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">SGPA</div>
           </div>
-          <div style="padding:20px 24px;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;flex-wrap:wrap;gap:20px;background:var(--bg-glass);">
-            <div><span style="font-size:0.78rem;color:var(--text-muted);">Total Marks</span><div style="font-size:1.2rem;font-weight:700;">517 / 600</div></div>
-            <div><span style="font-size:0.78rem;color:var(--text-muted);">Percentage</span><div style="font-size:1.2rem;font-weight:700;color:var(--success);">86.17%</div></div>
-            <div><span style="font-size:0.78rem;color:var(--text-muted);">SGPA</span><div style="font-size:1.2rem;font-weight:700;color:var(--primary-light);">8.62</div></div>
-            <div><span style="font-size:0.78rem;color:var(--text-muted);">CGPA</span><div style="font-size:1.2rem;font-weight:700;color:var(--primary-light);">8.75</div></div>
-            <div><span style="font-size:0.78rem;color:var(--text-muted);">Division</span><div style="font-size:1.2rem;font-weight:700;color:var(--success);">First Class - Distinction</div></div>
+          <div>
+            <span class="grade-badge <?php echo gradeClass($result['grade']); ?>" style="font-size:1rem;"><?php echo $result['grade']; ?></span>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Grade</div>
           </div>
-        </div>
-
-        <!-- Disclaimer -->
-        <div class="alert alert-info animate-fade-up" style="animation-delay:0.4s;">
-          <i class="fas fa-info-circle"></i>
-          <span>This is a provisional result. For official result documents, please contact the examination cell or login to your student portal.</span>
+          <div>
+            <span class="status-badge <?php echo $result['passed'] ? 'pass' : 'fail'; ?>"><?php echo $result['passed'] ? 'PASSED' : 'FAILED'; ?></span>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Result</div>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Results Table -->
+    <div class="panel animate-fade-up" style="margin-top:16px;animation-delay:0.1s;">
+      <div class="panel-header">
+        <h3><i class="fas fa-file-alt" style="margin-right:8px;color:var(--primary-light);"></i> Semester <?php echo $result['semester']; ?> Results</h3>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Subject</th>
+                <th>Exam</th>
+                <th>Internal</th>
+                <th>External</th>
+                <th>Total</th>
+                <th>%</th>
+                <th>Grade</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($result['subjects'] as $s): ?>
+              <tr>
+                <td style="font-family:var(--font-mono);"><?php echo htmlspecialchars($s['code']); ?></td>
+                <td><?php echo htmlspecialchars($s['name']); ?></td>
+                <td><?php echo htmlspecialchars($s['exam']); ?></td>
+                <td><?php echo $s['internal']; ?>/<?php echo $s['max_internal']; ?></td>
+                <td><?php echo $s['external']; ?>/<?php echo $s['max_external']; ?></td>
+                <td><strong><?php echo intval($s['total']); ?>/<?php echo $s['max']; ?></strong></td>
+                <td><strong style="color:<?php echo $s['passed']?'var(--success)':'var(--danger)'; ?>;"><?php echo $s['pct']; ?>%</strong></td>
+                <td><span class="grade-badge <?php echo gradeClass($s['grade']); ?>"><?php echo $s['grade']; ?></span></td>
+                <td><span class="status-badge <?php echo $s['passed']?'pass':'fail'; ?>"><?php echo $s['passed']?'Pass':'Fail'; ?></span></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+              <tr style="font-weight:700;border-top:2px solid var(--border-color);">
+                <td colspan="3">Total</td>
+                <td>-</td>
+                <td>-</td>
+                <td><?php echo intval($result['total_obtained']); ?>/<?php echo $result['total_max']; ?></td>
+                <td style="color:<?php echo $result['passed']?'var(--success)':'var(--danger)'; ?>;"><?php echo $result['percentage']; ?>%</td>
+                <td><span class="grade-badge <?php echo gradeClass($result['grade']); ?>"><?php echo $result['grade']; ?></span></td>
+                <td><span class="status-badge <?php echo $result['passed']?'pass':'fail'; ?>"><?php echo $result['passed']?'Pass':'Fail'; ?></span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="student-login.php" class="btn btn-ghost"><i class="fas fa-sign-in-alt"></i> Login for Full Results</a>
+    </div>
+    <?php endif; ?>
+
   </div>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-bottom" style="border:none;padding:0;">
-        <p>&copy; 2026 GradeFlow. All rights reserved.</p>
-        <div class="footer-bottom-links">
-          <a href="index.php">Home</a>
-          <a href="student-login.php">Student Login</a>
-          <a href="admin-login.php">Admin Login</a>
-        </div>
-      </div>
-    </div>
-  </footer>
-
   <script>
-    function showResult() {
-      const roll = document.getElementById('rollInput').value.trim();
-      if (roll) {
-        document.getElementById('resultSection').style.display = 'block';
-        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
-
-    // Allow Enter key
-    document.getElementById('rollInput').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') showResult();
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+      const navbar = document.getElementById('navbar');
+      navbar.classList.toggle('scrolled', window.scrollY > 40);
     });
   </script>
 </body>
