@@ -130,7 +130,7 @@ $resultClass = getResultClass($overallPercentage);
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Account</div>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-user-circle"></i></span> My Profile</a>
+          <a href="student-profile.php" class="sidebar-link"><span class="icon"><i class="fas fa-user-circle"></i></span> My Profile</a>
           <a href="logout.php" class="sidebar-link"><span class="icon"><i class="fas fa-sign-out-alt"></i></span> Logout</a>
         </div>
       </nav>

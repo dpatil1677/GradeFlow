@@ -23,7 +23,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$roll]);
         $student = $stmt->fetch();
 
-        if ($student && password_verify($password, $student['password'])) {
+        // One-time upgrade: If password is plain text, upgrade to hash
+        $valid_password = false;
+        if ($student) {
+            if (password_verify($password, $student['password'])) {
+                $valid_password = true;
+            } elseif ($student['password'] === $password) { // Plain text fallback
+                $valid_password = true;
+                $new_hash = password_hash($password, PASSWORD_DEFAULT);
+                $update_stmt = $pdo->prepare("UPDATE students SET password = ? WHERE id = ?");
+                $update_stmt->execute([$new_hash, $student['id']]);
+            }
+        }
+
+        if ($valid_password) {
             $_SESSION['student_id'] = $student['id'];
             $_SESSION['student_roll'] = $student['roll_number'];
             $_SESSION['student_name'] = $student['first_name'] . ' ' . $student['last_name'];

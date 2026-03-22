@@ -29,11 +29,8 @@
       </div>
 
       <div class="navbar-actions">
-        <a href="student-login.php" class="btn btn-ghost btn-sm">Student Login</a>
-        <a href="admin-login.php" class="btn btn-primary btn-sm">Admin Portal</a>
-        <div class="hamburger" id="hamburger" onclick="toggleNav()">
-          <span></span><span></span><span></span>
-        </div>
+        <a href="student-login.php" class="btn btn-ghost btn-sm" id="studentLoginBtn">Student Login</a>
+        <a href="admin-login.php" class="btn btn-primary btn-sm" id="adminPortalBtn">Admin Portal</a>
       </div>
     </div>
   </nav>
@@ -336,10 +333,30 @@
       navbar.classList.toggle('scrolled', window.scrollY > 40);
     });
 
-    // Mobile nav toggle
-    function toggleNav() {
-      document.getElementById('navMenu').classList.toggle('open');
+    // Mobile responsive navbar
+    function handleResize() {
+      const navMenu = document.getElementById('navMenu');
+      const studentBtn = document.getElementById('studentLoginBtn');
+      const adminBtn = document.getElementById('adminPortalBtn');
+
+      if (window.innerWidth <= 768) {
+        // Mobile: hide nav links and admin button, show only student login
+        navMenu.style.display = 'none';
+        adminBtn.style.display = 'none';
+        studentBtn.style.display = 'inline-flex';
+        studentBtn.className = 'btn btn-primary btn-sm';
+      } else {
+        // Desktop: show everything as normal
+        navMenu.style.display = '';
+        adminBtn.style.display = '';
+        studentBtn.style.display = '';
+        studentBtn.className = 'btn btn-ghost btn-sm';
+      }
     }
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('DOMContentLoaded', handleResize);
+    handleResize();
 
     // Intersection Observer for animations
     const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };

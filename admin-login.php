@@ -24,7 +24,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$username]);
         $admin = $stmt->fetch();
 
-        if ($admin && password_verify($password, $admin['password']) && $admin['security_code'] === $security_code) {
+        // One-time upgrade: If password is plain text (like from db_setup.sql), update to hash
+        $valid_password = false;
+        if ($admin) {
+            if (password_verify($password, $admin['password'])) {
+                $valid_password = true;
+            } elseif ($admin['password'] === $password) { // Plain text fallback
+                $valid_password = true;
+                $new_hash = password_hash($password, PASSWORD_DEFAULT);
+                $update_stmt = $pdo->prepare("UPDATE admins SET password = ? WHERE id = ?");
+                $update_stmt->execute([$new_hash, $admin['id']]);
+            }
+        }
+
+        if ($valid_password && $admin['security_code'] === $security_code) {
             $_SESSION['admin_id'] = $admin['id'];
             $_SESSION['admin_username'] = $admin['username'];
             $_SESSION['admin_name'] = $admin['full_name'];

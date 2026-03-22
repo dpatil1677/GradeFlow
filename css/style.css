@@ -1684,6 +1684,16 @@ h6 {
   }
 }
 
+/* ---- Mobile Navigation Classes ---- */
+.mobile-only-btn {
+  display: none;
+}
+
+/* Mobile student login button — hidden on desktop, visible on mobile */
+.mobile-student-btn {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .hero-title {
     font-size: 2.6rem;
@@ -1724,12 +1734,20 @@ h6 {
     display: flex;
   }
 
+  /* Hide the hamburger on mobile - we use a direct button instead */
   .hamburger {
-    display: flex;
+    display: none;
   }
 
-  .navbar-actions .btn {
+  /* Hide desktop-only buttons on mobile */
+  .navbar-actions .btn-ghost,
+  .navbar-actions .btn-primary:not(.mobile-student-btn) {
     display: none;
+  }
+
+  /* Show only the Student Login button on mobile */
+  .mobile-student-btn {
+    display: inline-flex !important;
   }
 
   .auth-visual {

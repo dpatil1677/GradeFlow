@@ -1,26 +1,16 @@
 <?php
 /**
  * GradeFlow — Database Setup Script
- * Run this once to create the database and seed data
- * Visit: http://localhost/college/includes/setup.php
+ * Run this once to create tables and seed data
+ * Works on both localhost (XAMPP) and InfinityFree
  */
 
-// DB connection without database selected first
-try {
-    $pdo = new PDO("mysql:host=localhost;charset=utf8mb4", "root", "", [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
-} catch (PDOException $e) {
-    die("MySQL connection failed: " . $e->getMessage());
-}
+require_once __DIR__ . '/db_connect.php';
 
 echo "<h2>🎓 GradeFlow Database Setup</h2>";
 echo "<pre style='background:#1a1a2e;color:#00ff88;padding:20px;border-radius:10px;font-family:monospace;'>";
 
-// Create database
-$pdo->exec("CREATE DATABASE IF NOT EXISTS gradeflow");
-$pdo->exec("USE gradeflow");
-echo "✅ Database 'gradeflow' created/selected\n";
+echo "✅ Database connected successfully\n";
 
 // Create tables
 $pdo->exec("CREATE TABLE IF NOT EXISTS admins (
@@ -30,14 +20,14 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS admins (
     full_name VARCHAR(100) NOT NULL,
     security_code VARCHAR(10) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB");
+) ENGINE=MyISAM");
 echo "✅ Table 'admins' ready\n";
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS courses (
     id INT AUTO_INCREMENT PRIMARY KEY,
     course_name VARCHAR(100) NOT NULL,
     short_name VARCHAR(20) NOT NULL
-) ENGINE=InnoDB");
+) ENGINE=MyISAM");
 echo "✅ Table 'courses' ready\n";
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS subjects (
@@ -47,9 +37,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS subjects (
     course_id INT NOT NULL,
     semester INT NOT NULL,
     max_internal INT DEFAULT 30,
-    max_external INT DEFAULT 70,
-    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-) ENGINE=InnoDB");
+    max_external INT DEFAULT 70
+) ENGINE=MyISAM");
 echo "✅ Table 'subjects' ready\n";
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS students (
@@ -72,9 +61,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS students (
     guardian_email VARCHAR(100),
     password VARCHAR(255) NOT NULL,
     status ENUM('Active','Inactive','Graduated') DEFAULT 'Active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-) ENGINE=InnoDB");
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM");
 echo "✅ Table 'students' ready\n";
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS marks (
@@ -85,10 +73,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS marks (
     internal_marks DECIMAL(5,2) DEFAULT 0,
     external_marks DECIMAL(5,2) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_mark (student_id, subject_id, exam_type),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
-) ENGINE=InnoDB");
+    UNIQUE KEY unique_mark (student_id, subject_id, exam_type)
+) ENGINE=MyISAM");
 echo "✅ Table 'marks' ready\n";
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS attendance (
@@ -98,10 +84,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS attendance (
     attendance_date DATE NOT NULL,
     status ENUM('Present','Absent') NOT NULL DEFAULT 'Present',
     remarks VARCHAR(255),
-    UNIQUE KEY unique_attendance (student_id, subject_id, attendance_date),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
-) ENGINE=InnoDB");
+    UNIQUE KEY unique_attendance (student_id, subject_id, attendance_date)
+) ENGINE=MyISAM");
 echo "✅ Table 'attendance' ready\n\n";
 
 // ---- SEED DATA ----
