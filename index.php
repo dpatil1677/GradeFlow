@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GradeFlow - Student Academic & Result Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Nunito:wght@400;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2.3">
   <link rel="icon" href="images/logo.png" sizes="32*32">
 </head>
 <body>
@@ -331,6 +331,34 @@
     window.addEventListener('scroll', () => {
       const navbar = document.getElementById('navbar');
       navbar.classList.toggle('scrolled', window.scrollY > 40);
+
+      // Scroll spy for navigation links
+      const sections = document.querySelectorAll('section[id], footer[id]');
+      const navLinks = document.querySelectorAll('.navbar-nav a[href^="#"]');
+      
+      let currentSection = '';
+      
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (pageYOffset >= (sectionTop - 250)) {
+          currentSection = section.getAttribute('id');
+        }
+      });
+
+      // Special check: If scrolled to absolute bottom, force contact
+      if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 50) {
+        currentSection = 'contact';
+      }
+      
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (currentSection && link.getAttribute('href') === `#${currentSection}`) {
+          link.classList.add('active');
+        } else if (!currentSection && link.getAttribute('href') === '#home') {
+          // Default to home if at the very top
+          link.classList.add('active');
+        }
+      });
     });
 
     // Mobile responsive navbar

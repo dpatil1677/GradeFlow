@@ -60,10 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Login - GradeFlow</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Nunito:wght@400;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/validation.css">
+  <link rel="stylesheet" href="css/style.css?v=2.3">
+  <link rel="stylesheet" href="css/validation.css?v=2.3">
 </head>
 <body>
 
@@ -143,13 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="caps-warning" id="capsWarning"><i class="fas fa-exclamation-triangle"></i> Caps Lock is ON</div>
             <div class="v-error-msg" id="passError"><i class="fas fa-exclamation-circle"></i> <span></span></div>
-            <div class="strength-meter" id="strengthMeter">
-              <div class="strength-bar" id="bar1"></div>
-              <div class="strength-bar" id="bar2"></div>
-              <div class="strength-bar" id="bar3"></div>
-              <div class="strength-bar" id="bar4"></div>
-            </div>
-            <div class="strength-text" id="strengthText"></div>
           </div>
 
           <!-- Remember & Forgot -->
@@ -196,9 +189,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const passwordIcon = document.getElementById('passwordIcon');
   const rollValidIcon = document.getElementById('rollValidIcon');
 
-  const strengthMeter = document.getElementById('strengthMeter');
-  const strengthText = document.getElementById('strengthText');
-  const bars = [document.getElementById('bar1'), document.getElementById('bar2'), document.getElementById('bar3'), document.getElementById('bar4')];
   const rollCount = document.getElementById('rollCount');
   const capsWarning = document.getElementById('capsWarning');
 
@@ -249,25 +239,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function validatePassword() {
     const v = passInput.value;
-    if (!v) { showError(passInput, passError, passwordIcon, null, 'Password is required'); resetStrength(); return false; }
+    if (!v) { showError(passInput, passError, passwordIcon, null, 'Password is required'); return false; }
     if (v.length < 6) { showError(passInput, passError, passwordIcon, null, 'Password must be at least 6 characters'); return false; }
     clearError(passInput, passError, passwordIcon, null);
     showSuccess(passInput, passwordIcon, null);
     return true;
   }
-
-  /* ---- Password Strength ---- */
-  function calcStrength(p) { let s=0; if(p.length>=6)s++; if(p.length>=10)s++; if(/[A-Z]/.test(p)&&/[a-z]/.test(p))s++; if(/\d/.test(p))s++; if(/[^a-zA-Z0-9]/.test(p))s++; return Math.min(s,4); }
-  function updateStrength(p) {
-    if (!p.length) { resetStrength(); return; }
-    strengthMeter.classList.add('show');
-    const s = calcStrength(p);
-    const lvl = ['','Weak','Fair','Good','Strong'], cls = ['','weak','medium','medium','strong'];
-    bars.forEach((b,i) => { b.className='strength-bar'; if(i<s) b.classList.add('active',cls[s]); });
-    if (s>0) { strengthText.textContent=lvl[s]; strengthText.className='strength-text show '+cls[s]; }
-    else strengthText.className='strength-text';
-  }
-  function resetStrength() { bars.forEach(b=>b.className='strength-bar'); strengthMeter.classList.remove('show'); strengthText.className='strength-text'; }
 
   /* ---- Toggle Password ---- */
   togglePasswordBtn.addEventListener('click', function() {
@@ -290,9 +267,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   passInput.addEventListener('input', function() {
-    updateStrength(this.value);
     if (this.value) validatePassword();
-    else { clearError(this, passError, passwordIcon, null); this.classList.remove('input-success'); resetStrength(); }
+    else { clearError(this, passError, passwordIcon, null); this.classList.remove('input-success'); }
   });
 
   /* ---- Blur validation ---- */

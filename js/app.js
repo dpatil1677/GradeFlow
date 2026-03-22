@@ -1,4 +1,4 @@
-   //Sidebar, Tabs, Modals, Interactivity
+//Sidebar, Tabs, Modals, Interactivity
 
 // ---- Sidebar Toggle (Mobile) ----
 function toggleSidebar() {
@@ -84,7 +84,7 @@ function toggleNav() {
   }
 }
 
-// ---- Smooth scroll for anchor links ----
+// ---- Scroll for anchor links ----
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function (e) {
     const href = this.getAttribute('href');
@@ -92,7 +92,15 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       e.preventDefault();
       const target = document.querySelector(href);
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Direct jump without smooth scrolling as requested by user
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+
+        // Force animations to play immediately when jumping
+        const animatedElements = target.querySelectorAll('.animate-fade-up, .animate-fade-down, .animate-fade-left, .animate-fade-right, .animate-scale');
+        animatedElements.forEach(el => {
+          el.style.animationPlayState = 'running';
+        });
+
         // Close mobile nav if open
         const navMenu = document.getElementById('navMenu');
         if (navMenu && navMenu.classList.contains('open')) {
@@ -173,7 +181,93 @@ console.log(
   'background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: bold;'
 );
 console.log(
-  '%cPowered by professional UI design',
+  '%cPowered by GradeFlow',
   'color: #a29bfe; font-size: 11px;'
 );
+
+// ---- Custom Premium Select Dropdowns ----
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('select.form-select').forEach(select => {
+    // Only init once
+    if (select.dataset.customized === "true") return;
+    select.dataset.customized = "true";
+
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-select-wrapper';
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(select);
+
+    // Hide original
+    select.style.display = 'none';
+
+    // Create trigger
+    const trigger = document.createElement('div');
+    trigger.className = 'custom-select-trigger';
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = select.options[select.selectedIndex]?.text || 'Select...';
+    trigger.appendChild(textSpan);
+
+    const iconSpan = document.createElement('span');
+    iconSpan.innerHTML = '<i class="fas fa-chevron-down"></i>';
+    trigger.appendChild(iconSpan);
+
+    wrapper.appendChild(trigger);
+
+    // Create options container
+    const optionsContainer = document.createElement('div');
+    optionsContainer.className = 'custom-select-options';
+
+    // Populate options
+    Array.from(select.options).forEach((option, index) => {
+      // Create option item
+      if (option.value === "" && option.disabled) return; // Skip hidden placeholders if desired, but we keep them to allow reset if needed
+
+      const optionEl = document.createElement('div');
+      optionEl.className = 'custom-select-option';
+      if (index === select.selectedIndex) optionEl.classList.add('selected');
+      optionEl.textContent = option.text;
+      optionEl.dataset.value = option.value;
+
+      optionEl.addEventListener('click', (e) => {
+        // Update original select
+        select.value = option.value;
+        // Trigger change event for any dependent scripts (like fetching subjects)
+        select.dispatchEvent(new Event('change'));
+
+        // Update UI
+        textSpan.textContent = option.text;
+        wrapper.classList.remove('open');
+
+        // Update selected class
+        optionsContainer.querySelectorAll('.custom-select-option').forEach(el => el.classList.remove('selected'));
+        optionEl.classList.add('selected');
+        e.stopPropagation();
+      });
+
+      optionsContainer.appendChild(optionEl);
+    });
+
+    wrapper.appendChild(optionsContainer);
+
+    // Toggle dropdown
+    trigger.addEventListener('click', (e) => {
+      // Close other open selects
+      document.querySelectorAll('.custom-select-wrapper.open').forEach(w => {
+        if (w !== wrapper) w.classList.remove('open');
+      });
+      wrapper.classList.toggle('open');
+      e.stopPropagation();
+    });
+  });
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select-wrapper.open').forEach(wrapper => {
+      wrapper.classList.remove('open');
+    });
+  });
+});
+
 

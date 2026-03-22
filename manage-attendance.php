@@ -97,10 +97,10 @@ $gradients = [
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Manage Attendance - GradeFlow Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Nunito:wght@400;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/style.css?v=2.3">
+  <link rel="stylesheet" href="css/dashboard.css?v=2.4">
 </head>
 <body>
 
@@ -155,7 +155,7 @@ $gradients = [
         <?php endif; ?>
 
         <!-- Selection Panel -->
-        <div class="panel animate-fade-up" style="margin-bottom:28px;">
+        <div class="panel animate-fade-up" style="margin-bottom:28px; position:relative; z-index:50;">
           <div class="panel-header">
             <h3><i class="fas fa-filter" style="margin-right:8px;color:var(--primary-light);"></i> Select Class</h3>
           </div>
@@ -298,6 +298,6 @@ $gradients = [
     </div>
   </div>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=2.3"></script>
 </body>
 </html>

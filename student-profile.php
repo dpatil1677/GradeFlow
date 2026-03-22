@@ -65,10 +65,10 @@ $createdDate = $stuData['created_at'] ? date('d M Y', strtotime($stuData['create
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Profile - GradeFlow</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Nunito:wght@400;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/style.css?v=2.3">
+  <link rel="stylesheet" href="css/dashboard.css?v=2.4">
   <style>
     /* ===== Profile Page Styles ===== */
     .profile-hero {
@@ -649,6 +649,6 @@ $createdDate = $stuData['created_at'] ? date('d M Y', strtotime($stuData['create
     </div>
   </div>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=2.3"></script>
 </body>
 </html>
