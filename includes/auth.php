@@ -108,3 +108,67 @@ function getResultClass($percentage) {
     if ($percentage >= 40) return 'Pass';
     return 'Fail';
 }
+
+/**
+ * Mock Notifications Initialization
+ */
+function initMockNotifications() {
+    if (!isset($_SESSION['mock_notifications'])) {
+        $_SESSION['mock_notifications'] = [
+            [
+                'id' => 1,
+                'type' => 'academic',
+                'title' => 'New Grades Posted',
+                'message' => 'Your recent results for the Mid-Semester Examination have been uploaded.',
+                'date' => date('Y-m-d H:i:s', strtotime('-2 hours')),
+                'read' => false,
+                'icon' => 'fas fa-graduation-cap',
+                'color' => 'var(--success)'
+            ],
+            [
+                'id' => 2,
+                'type' => 'system',
+                'title' => 'System Maintenance Scheduled',
+                'message' => 'The GradeFlow portal will be offline for maintenance on Saturday from 2:00 AM to 4:00 AM.',
+                'date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+                'read' => false,
+                'icon' => 'fas fa-wrench',
+                'color' => 'var(--warning)'
+            ],
+            [
+                'id' => 3,
+                'type' => 'event',
+                'title' => 'Upcoming Tech Symposium',
+                'message' => 'Don\'t miss out on the annual Tech Symposium happening next week! Register before Friday.',
+                'date' => date('Y-m-d H:i:s', strtotime('-3 days')),
+                'read' => true,
+                'icon' => 'fas fa-calendar-alt',
+                'color' => 'var(--primary)'
+            ],
+            [
+                'id' => 4,
+                'type' => 'academic',
+                'title' => 'Attendance Alert',
+                'message' => 'Your attendance in Data Structures is falling below 75%. Please ensure you attend the upcoming classes.',
+                'date' => date('Y-m-d H:i:s', strtotime('-5 days')),
+                'read' => false,
+                'icon' => 'fas fa-exclamation-triangle',
+                'color' => 'var(--danger)'
+            ]
+        ];
+    }
+}
+
+/**
+ * Get Unread Notification Count
+ */
+function getUnreadNotificationCount() {
+    initMockNotifications();
+    $count = 0;
+    foreach ($_SESSION['mock_notifications'] as $n) {
+        if (!$n['read']) {
+            $count++;
+        }
+    }
+    return $count;
+}

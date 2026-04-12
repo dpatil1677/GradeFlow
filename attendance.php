@@ -113,8 +113,8 @@ if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Academic</div>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-book"></i></span> Subjects</a>
-          <a href="#" class="sidebar-link"><span class="icon"><i class="fas fa-bell"></i></span> Notifications <span class="badge" style="margin-left:auto;background:var(--danger);color:#fff;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;">3</span></a>
+          <a href="student-subjects.php" class="sidebar-link"><span class="icon"><i class="fas fa-book"></i></span> Subjects</a>
+          <a href="student-notifications.php" class="sidebar-link"><span class="icon"><i class="fas fa-bell"></i></span> Notifications <?php $unreadCnt = getUnreadNotificationCount(); if($unreadCnt > 0): ?><span class="badge" id="sidebar-badge" style="margin-left:auto;background:var(--danger);color:#fff;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;"><?php echo $unreadCnt; ?></span><?php endif; ?></a>
         </div>
         <div class="sidebar-nav-group">
           <div class="sidebar-nav-label">Account</div>
