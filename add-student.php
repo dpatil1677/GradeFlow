@@ -51,7 +51,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hashedPw = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO students (roll_number, first_name, last_name, email, phone, dob, gender, address, course_id, semester, section, admission_year, father_name, mother_name, guardian_contact, guardian_email, password, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Active')");
             $stmt->execute([$rollNo, $firstName, $lastName, $email, $phone, $dob ?: null, $gender ?: null, $address, $courseId, $semester, $section, $admYear, $fatherName, $motherName, $guardianContact, $guardianEmail, $hashedPw]);
-            $success = "Student $firstName $lastName (Roll: $rollNo) registered successfully!";
+            
+            // Send Email to the student with their credentials
+            $to = $email;
+            $subject = "Welcome to GradeFlow - Your Account Details";
+            
+            // Get course name for the email
+            $courseName = '';
+            foreach ($courses as $c) {
+                if ($c['id'] == $courseId) {
+                    $courseName = $c['course_name'];
+                    break;
+                }
+            }
+            
+            $message = <<<HTML
+            <html>
+            <head>
+            <title>Welcome to GradeFlow</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2>Welcome to GradeFlow, $firstName $lastName!</h2>
+            <p>Your student account has been successfully created by the administrator.</p>
+            <p>Here are your account credentials and details:</p>
+            <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Name:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$firstName $lastName</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Roll Number (Username):</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$rollNo</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Email:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$email</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Password:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$password</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Course:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$courseName</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Semester:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$semester</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Section:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">$section</td></tr>
+            </table>
+            <p>Please log in using your Roll Number and Password. We strongly recommend changing your password after your first login.</p>
+            <p> Using this link <a href="https://gradeflow.gt.tc">GradeFlow</a></p>
+            <p>Best Regards,<br><strong>GradeFlow Administrator</strong></p>
+            </body>
+            </html>
+HTML;
+
+            // Use PHPMailer for reliable SMTP sending via Gmail
+            require_once 'includes/PHPMailer/src/Exception.php';
+            require_once 'includes/PHPMailer/src/PHPMailer.php';
+            require_once 'includes/PHPMailer/src/SMTP.php';
+            
+            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+            
+            try {
+                // Server settings
+                $mail->isSMTP();
+                $mail->Host       = 'smtp.gmail.com';
+                $mail->SMTPAuth   = true;
+                
+                // IMPORTANT: Replace these two variables with your completely real Gmail details
+                $mail->Username   = 'dhruvpatil1677@gmail.com'; 
+                $mail->Password   = 'edelfiqwsoyhckwc'; // Removed spaces from App Password
+                
+                $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                $mail->Port       = 465;
+
+                // Recipients
+                $mail->setFrom('dhruvpatil1677@gmail.com', 'GradeFlow Administrator'); 
+                $mail->addAddress($to);
+
+
+                // Content
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $message;
+
+                $mail->send();
+                $success = "Student $firstName $lastName (Roll: $rollNo) registered successfully! An email with credentials has been sent via Gmail SMTP.";
+            } catch (Exception $e) {
+                // If it fails, report that the student was saved but mail failed
+                $success = "Student $firstName $lastName registered successfully, BUT email could not be sent. Mailer Error: {$mail->ErrorInfo}";
+            }
         }
     }
 }
